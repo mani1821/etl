@@ -16,6 +16,7 @@ dbutils.widgets.dropdown("env", "databricks", ["databricks", "oracle"], "Environ
 dbutils.widgets.text("tables", "", "Tables (comma-separated, empty = all)")
 # Default params match the sample data from create_sample_data; for real runs use your batch ids / run start times
 dbutils.widgets.text("params", '{"SRC_BATCH_ID":"101","TGT_BATCH_ID":"9001","SRC_RUN_START":"2026-10-13 02:00:00","TGT_RUN_START":"2026-10-13 04:00:00"}', "Params (JSON for ${NAME} placeholders)")
+dbutils.widgets.dropdown("send_email", "true", ["true", "false"], "E-mail this run's report (false = a later send_report task mails one combined report)")
 
 # Without the wheel installed, import the package from this repo / folder (parent of notebooks/)
 try:
@@ -34,7 +35,22 @@ config = config if config.startswith("/") else os.path.normpath(os.path.join(os.
 tables = [t.strip() for t in dbutils.widgets.get("tables").split(",") if t.strip()] or None
 
 run = run_parity(config, env=dbutils.widgets.get("env"), tables=tables,
-                 params=json.loads(dbutils.widgets.get("params") or "{}"))
+                 params=json.loads(dbutils.widgets.get("params") or "{}"),
+                 send_email=dbutils.widgets.get("send_email") == "true")
+
+# in a job: hand the run id to a later send_report task (dbutils.jobs.taskValues; ignored outside jobs)
+try:
+    dbutils.jobs.taskValues.set(key="run_id", value=run.run_id)
+except Exception:
+    pass
+
+# COMMAND ----------
+
+# MAGIC %md ## Run report (the same page the e-mail contains)
+
+# COMMAND ----------
+
+displayHTML(run.report_html)
 
 # COMMAND ----------
 
